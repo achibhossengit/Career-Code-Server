@@ -39,8 +39,13 @@ async function run() {
         company: 1,
         requirements: 1,
         company_logo: 1,
+        hr_email: 1,
       };
-      const jobs = await jobsColl.find({}, { projection }).toArray();
+      const email = req.query.email;
+      const query = {};
+      if (email) query.hr_email = email;
+
+      const jobs = await jobsColl.find(query, { projection }).toArray();
       res.send(jobs);
     });
 
@@ -50,10 +55,19 @@ async function run() {
       res.send(job);
     });
 
+    app.post("/jobs", async (req, res) => {
+      const newJob = req.body;
+      const result = await jobsColl.insertOne(newJob);
+      res.send(result);
+    });
+
     // job application api
     app.get("/applications", async (req, res) => {
       const email = req.query.email;
-      const query = { applicant: email };
+      const job_id = req.query.job_id;
+      const query = {};
+      if (email) query.applicant = email;
+      if (job_id) query.jobId = job_id;
       const applications = await applicationsColl.find(query).toArray();
 
       // bad way to aggregate
@@ -71,6 +85,16 @@ async function run() {
     app.post("/applications", async (req, res) => {
       const application = req.body;
       const result = await applicationsColl.insertOne(application);
+      res.send(result);
+    });
+
+    app.patch("/applications/:id", async (req, res) => {
+      const updatedStatus = req.body.status;
+      console.log(updatedStatus);
+      const query = { _id: new ObjectId(req.params.id) };
+      const update = { $set: { status: updatedStatus } };
+
+      const result = await applicationsColl.updateOne(query, update);
       res.send(result);
     });
 
