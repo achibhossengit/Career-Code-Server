@@ -7,7 +7,12 @@ const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.2dlckac.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -35,7 +40,9 @@ async function run() {
         expiresIn: "1d",
       });
 
-      res.send({token})
+      res.cookie("token", token, { httpOnly: true, secure: false });
+
+      res.send({ success: true });
     });
 
     // job api
