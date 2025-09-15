@@ -17,6 +17,17 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+const verifyToken = (req, res, next) => {
+  const token = req?.cookies?.token;
+  if (!token)
+    return res.status(401).send({ message: "Unauthorized/ Anonimous User" });
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(401).send({ message: "Unauthorized User" });
+    req.decoded = decoded;
+  });
+  next();
+};
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.2dlckac.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -49,8 +60,12 @@ async function run() {
 
     // job api
     // bad way to aggregate
-    app.get("/jobs/applications", async (req, res) => {
-      console.log(req.cookies);
+    app.get("/jobs/applications", verifyToken, async (req, res) => {
+      const email = req.query.email;
+      const reqEmail = req.decoded.email;
+      console.log(reqEmail);
+      if (reqEmail != email)
+        return res.status(403).send("You are not permited/Forbidden.");
 
       const projection = {
         title: 1,
@@ -64,7 +79,6 @@ async function run() {
         company_logo: 1,
         hr_email: 1,
       };
-      const email = req.query.email;
       const query = {};
       if (email) query.hr_email = email;
 
