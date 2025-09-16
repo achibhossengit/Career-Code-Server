@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
+var admin = require("firebase-admin");
 const app = express();
 const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -16,6 +17,23 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+
+// firebase-admin-config
+var serviceAccount = require("./firebase-admin-private-key.json");
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+const verifyFirebaseToken = async (req, res, next) => {
+  const authHeader = req?.headers?.authorization;
+  const token = authHeader.split(" ")[1];
+  if (!token) res.status(401).send({ message: "Unauthorized User" });
+
+  // now we have to validate this token with firebase admin
+  const userInfo = await admin.auth().verifyIdToken(token);
+  req.tokenEmail = userInfo.email;
+  next();
+};
 
 const verifyToken = (req, res, next) => {
   const token = req?.cookies?.token;
@@ -129,8 +147,13 @@ async function run() {
     });
 
     // job application api
-    app.get("/applications", async (req, res) => {
+    app.get("/applications", verifyFirebaseToken, async (req, res) => {
       const email = req.query.email;
+      const tokenEmail = req.tokenEmail;
+
+      if (email != tokenEmail)
+        return res.status(401).send({ message: "Unauthorized User" });
+
       const job_id = req.query.job_id;
       const query = {};
       if (email) query.applicant = email;
