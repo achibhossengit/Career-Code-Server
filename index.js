@@ -26,12 +26,25 @@ admin.initializeApp({
 
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req?.headers?.authorization;
+  if (!authHeader)
+    return res.status(401).send({ message: "Unauthorized User" });
   const token = authHeader.split(" ")[1];
+
   if (!token) res.status(401).send({ message: "Unauthorized User" });
 
-  // now we have to validate this token with firebase admin
-  const userInfo = await admin.auth().verifyIdToken(token);
-  req.tokenEmail = userInfo.email;
+  try {
+    const userInfo = await admin.auth().verifyIdToken(token);
+    req.tokenEmail = userInfo.email;
+    next();
+  } catch (error) {
+    console.log(error);
+    return res.status(401).send({ message: "Unauthorized User" });
+  }
+};
+
+const verifyTokenEmail = (req, res, next) => {
+  if (req.query.email != req.tokenEmail)
+    return res.status(403).send({ message: "Forbiden error" });
   next();
 };
 
@@ -147,30 +160,35 @@ async function run() {
     });
 
     // job application api
-    app.get("/applications", verifyFirebaseToken, async (req, res) => {
-      const email = req.query.email;
-      const tokenEmail = req.tokenEmail;
+    app.get(
+      "/applications",
+      verifyFirebaseToken,
+      verifyTokenEmail,
+      async (req, res) => {
+        const email = req.query.email;
+        const tokenEmail = req.tokenEmail;
 
-      if (email != tokenEmail)
-        return res.status(401).send({ message: "Unauthorized User" });
+        if (email != tokenEmail)
+          return res.status(401).send({ message: "Unauthorized User" });
 
-      const job_id = req.query.job_id;
-      const query = {};
-      if (email) query.applicant = email;
-      if (job_id) query.jobId = job_id;
-      const applications = await applicationsColl.find(query).toArray();
+        const job_id = req.query.job_id;
+        const query = {};
+        if (email) query.applicant = email;
+        if (job_id) query.jobId = job_id;
+        const applications = await applicationsColl.find(query).toArray();
 
-      // bad way to aggregate
-      for (const application of applications) {
-        const jobId = application.jobId;
-        const job = await jobsColl.findOne({ _id: new ObjectId(jobId) });
-        application.title = job.title;
-        application.company = job.company;
-        application.location = job.location;
-        application.company_logo = job.company_logo;
+        // bad way to aggregate
+        for (const application of applications) {
+          const jobId = application.jobId;
+          const job = await jobsColl.findOne({ _id: new ObjectId(jobId) });
+          application.title = job.title;
+          application.company = job.company;
+          application.location = job.location;
+          application.company_logo = job.company_logo;
+        }
+        res.send(applications);
       }
-      res.send(applications);
-    });
+    );
 
     app.post("/applications", async (req, res) => {
       const application = req.body;
