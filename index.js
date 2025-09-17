@@ -48,6 +48,7 @@ const verifyTokenEmail = (req, res, next) => {
   next();
 };
 
+// we are already use firebase, so we can should use firebase verify system for more security
 const verifyToken = (req, res, next) => {
   const token = req?.cookies?.token;
   if (!token)
@@ -90,41 +91,41 @@ async function run() {
     });
 
     // job api
-    // bad way to aggregate
-    app.get("/jobs/applications", verifyToken, async (req, res) => {
-      const email = req.query.email;
-      const reqEmail = req.decoded.email;
-      console.log(reqEmail);
-      if (reqEmail != email)
-        return res.status(403).send("You are not permited/Forbidden.");
+    app.get(
+      "/jobs/applications",
+      verifyFirebaseToken,
+      verifyTokenEmail,
+      async (req, res) => {
+        const email = req.query.email;
+        const projection = {
+          title: 1,
+          location: 1,
+          jobType: 1,
+          applicationDeadline: 1,
+          salaryRange: 1,
+          description: 1,
+          company: 1,
+          requirements: 1,
+          company_logo: 1,
+          hr_email: 1,
+        };
+        const query = {};
+        if (email) query.hr_email = email;
+        
+        const jobs = await jobsColl.find(query, { projection }).toArray();
+        
+        // bad way to aggregate
+        for (const job of jobs) {
+          const applicationQuery = { jobId: job._id.toString() };
+          const application_count = await applicationsColl.countDocuments(
+            applicationQuery
+          );
+          job.application_count = application_count;
+        }
 
-      const projection = {
-        title: 1,
-        location: 1,
-        jobType: 1,
-        applicationDeadline: 1,
-        salaryRange: 1,
-        description: 1,
-        company: 1,
-        requirements: 1,
-        company_logo: 1,
-        hr_email: 1,
-      };
-      const query = {};
-      if (email) query.hr_email = email;
-
-      const jobs = await jobsColl.find(query, { projection }).toArray();
-
-      for (const job of jobs) {
-        const applicationQuery = { jobId: job._id.toString() };
-        const application_count = await applicationsColl.countDocuments(
-          applicationQuery
-        );
-        job.application_count = application_count;
+        res.send(jobs);
       }
-
-      res.send(jobs);
-    });
+    );
 
     app.get("/jobs", async (req, res) => {
       const projection = {
